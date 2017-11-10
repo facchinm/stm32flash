@@ -78,7 +78,7 @@ stm32_err_t stm32_write_memory(const stm32_t *stm, uint32_t address,
 stm32_err_t stm32_wunprot_memory(const stm32_t *stm);
 stm32_err_t stm32_wprot_memory(const stm32_t *stm);
 stm32_err_t stm32_erase_memory(const stm32_t *stm, uint32_t spage,
-			       uint32_t pages);
+			       int32_t pages);
 stm32_err_t stm32_go(const stm32_t *stm, uint32_t address);
 stm32_err_t stm32_reset_device(const stm32_t *stm);
 stm32_err_t stm32_readprot_memory(const stm32_t *stm);
