@@ -92,6 +92,10 @@ const stm32_dev_t devices[] = {
 	{0x434, "STM32F469xx/479xx"               , 0x20003000, 0x20060000, 0x08000000, 0x08200000,  1, f4db  , 0x1FFEC000, 0x1FFFC00F, 0x1FFF0000, 0x1FFF7800, 0},
 	{0x463, "STM32F413xx/423xx"               , 0x20003000, 0x20050000, 0x08000000, 0x08180000,  1, f2f4  , 0x1FFFC000, 0x1FFFC00F, 0x1FFF0000, 0x1FFF7800, 0},
 	/* G0 */
+	/* The chips with ID 0x466 have a mismatch in AN2606 Rev 44, where table 141 claims 0x2000000 - 0x20000fff to be readable
+	 * as opposed to the correct table 85, where this range is correctly marked as reserved by the bootloader
+	 */
+	{0x466, "STM32G03xxx/04xxx"               , 0x20001000, 0x20002000, 0x08000000, 0x08010000,  1, p_2k  , 0x1FFF7800, 0x1FFF787F, 0x1FFF0000, 0x1FFF7000, 0},
 	{0x460, "STM32G07xxx/08xxx"               , 0x20003000, 0x20009000, 0x08000000, 0x08020000,  1, p_2k  , 0x1FFF7800, 0x1FFF787F, 0x1FFF0000, 0x1FFF7000, 0},
 	/* F7 */
 	{0x452, "STM32F72xxx/73xxx"               , 0x20004000, 0x20040000, 0x08000000, 0x08080000,  1, f2f4  , 0x1FFF0000, 0x1FFF001F, 0x1FF00000, 0x1FF0EDC0, 0},
