@@ -52,9 +52,14 @@ static uint32_t f4db[]  = {
 static uint32_t f7[]    = { SZ_32K, SZ_32K, SZ_32K, SZ_32K, SZ_128K, SZ_256K, 0 };
 
 /*
- * Device table, corresponds to the "Bootloader device-dependant parameters"
+ * Device table, corresponds to the "Bootloader device-dependent parameters"
  * table in ST document AN2606.
  * Note that the option bytes upper range is inclusive!
+ *
+ * When adding new devices, please double-check agaist the chip-specific
+ * sections and reference manuals, where also flash address and option
+ * byte ranges can be found. In the commit message, please reference the
+ * source documents including their revision.
  */
 const stm32_dev_t devices[] = {
 	/* ID   "name"                              SRAM-address-range      FLASH-address-range    PPS  PSize   Option-byte-addr-range  System-mem-addr-range   Flags */
