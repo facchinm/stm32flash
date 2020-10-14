@@ -116,6 +116,9 @@ static int drive_gpio(int n, int level, struct gpio_list **gpio_to_release)
 			fprintf(stderr, "GPIO %d not available\n", n);
 			return 0;
 		}
+		/* give udevd a chance to set permissions */
+		if (access(file, W_OK))
+			usleep(10);
 		exported = 0;
 	}
 
