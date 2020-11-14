@@ -715,7 +715,7 @@ int parse_options(int argc, char *argv[])
 				}
 				npages = strtoul(optarg, NULL, 0);
 				if (npages > STM32_MAX_PAGES || npages < 0) {
-					fprintf(stderr, "ERROR: You need to specify a page count between 0 and 255");
+					fprintf(stderr, "ERROR: You need to specify a page count between 0 and 0xffff");
 					return 1;
 				}
 				if (!npages)
