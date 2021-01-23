@@ -937,10 +937,10 @@ stm32_err_t stm32_erase_memory(const stm32_t *stm, uint32_t spage, uint32_t page
 
 	/*
 	 * Some device, like STM32L152, cannot erase more than 512 pages in
-	 * one command. Split the call.
+	 * one command, even 511 for STM32L082. Split the call.
 	 */
 	while (pages) {
-		n = (pages <= 512) ? pages : 512;
+		n = (pages <= 511) ? pages : 511;
 		s_err = stm32_pages_erase(stm, spage, n);
 		if (s_err != STM32_ERR_OK)
 			return s_err;
