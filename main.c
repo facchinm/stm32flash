@@ -294,6 +294,9 @@ int main(int argc, char* argv[]) {
 		}
 
 		fprintf(diag, "Using Parser : %s\n", parser->name);
+		/* We may know from the file how much data there is */
+		if (!use_stdinout && !readwrite_len)
+			readwrite_len = parser->size(p_st);
 	} else {
 		parser = &PARSER_BINARY;
 		p_st = parser->init();
