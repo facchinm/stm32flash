@@ -799,7 +799,7 @@ int parse_options(int argc, char *argv[])
 					}
 					/* we decode 0 as 1 (which is unaligned and thus invalid anyway)
 					 * to flag that it was set by the user */
-					if (start_addr == 0)
+					if (pLen != optarg && start_addr == 0)
 						start_addr = 1;
 					if (*pLen == ':') {
 						pLen++;
