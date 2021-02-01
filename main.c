@@ -294,6 +294,7 @@ int main(int argc, char* argv[]) {
 		}
 
 		fprintf(diag, "Using Parser : %s\n", parser->name);
+
 		/* We may know from the file how much data there is */
 		if (!use_stdinout && !readwrite_len)
 			readwrite_len = parser->size(p_st);
@@ -350,7 +351,14 @@ int main(int argc, char* argv[]) {
 	 *	start, end, first_page, num_pages
 	 */
 	if (start_addr || readwrite_len) {
-		start = start_addr;
+		if (start_addr == 0)
+			/* default */
+			start = stm->dev->fl_start;
+		else if (start_addr == 1)
+			/* if specified to be 0 by user */
+			start = 0;
+		else
+			start = start_addr;
 
 		if (is_addr_in_flash(start))
 			end = stm->dev->fl_end;
@@ -785,6 +793,14 @@ int parse_options(int argc, char *argv[])
 					return 1;
 				} else {
 					start_addr = strtoul(optarg, &pLen, 0);
+					if (start_addr % 4 != 0) {
+						fprintf(stderr, "ERROR: Start address must be word-aligned\n");
+						return 1;
+					}
+					/* we decode 0 as 1 (which is unaligned and thus invalid anyway)
+					 * to flag that it was set by the user */
+					if (start_addr == 0)
+						start_addr = 1;
 					if (*pLen == ':') {
 						pLen++;
 						readwrite_len = strtoul(pLen, NULL, 0);
