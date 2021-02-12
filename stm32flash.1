@@ -1,4 +1,4 @@
-.TH "STM32FLASH" "1" "November 2020" stm32flash "User command"
+.TH "STM32FLASH" "1" "February 2021" stm32flash "User command"
 .SH NAME
 stm32flash \- flashing utility for STM32 through UART or I2C
 .SH SYNOPSIS
@@ -116,9 +116,9 @@ Erase only.
 
 .TP
 .BI "\-e" " num"
-Specify to erase only
+Specify to erase
 .I num
-pages before writing the flash. Default is to erase the whole flash. With
+pages before writing the flash. Default is to erase the necessary pages based on the file content size and/or parameters provided with the -S option, or the whole flash if this cannot be determined. With
 .B \-e 0
 the flash would not be erased.
 
