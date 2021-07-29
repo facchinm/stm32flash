@@ -33,7 +33,7 @@
 #define STM32_NACK	0x1F
 #define STM32_BUSY	0x76
 
-#define STM32_CMD_INIT	0x7F
+#define STM32_CMD_INIT	0x5A
 #define STM32_CMD_GET	0x00	/* get the version and command supported */
 #define STM32_CMD_GVR	0x01	/* get version and read protection status */
 #define STM32_CMD_GID	0x02	/* get ID */
@@ -190,6 +190,8 @@ static stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, time_t timeout)
 	port_err_t p_err;
 	time_t t0, t1;
 
+	printf("stm32_get_ack_timeout\n");
+
 	if (!(port->flags & PORT_RETRY))
 		timeout = 0;
 
@@ -200,6 +202,7 @@ static stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, time_t timeout)
 		p_err = port->read(port, &byte, 1);
 		if (p_err == PORT_ERR_TIMEDOUT && timeout) {
 			time(&t1);
+			usleep(10000);
 			if (t1 < t0 + timeout)
 				continue;
 		}
@@ -223,7 +226,7 @@ static stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, time_t timeout)
 
 static stm32_err_t stm32_get_ack(const stm32_t *stm)
 {
-	return stm32_get_ack_timeout(stm, 0);
+	return stm32_get_ack_timeout(stm, stm->port->flags & PORT_RETRY ? 100 : 0);
 }
 
 static stm32_err_t stm32_send_command_timeout(const stm32_t *stm,
@@ -233,11 +236,12 @@ static stm32_err_t stm32_send_command_timeout(const stm32_t *stm,
 	struct port_interface *port = stm->port;
 	stm32_err_t s_err;
 	port_err_t p_err;
-	uint8_t buf[2];
+	uint8_t buf[3];
 
-	buf[0] = cmd;
-	buf[1] = cmd ^ 0xFF;
-	p_err = port->write(port, buf, 2);
+	buf[0] = 0x5A;
+	buf[1] = cmd;
+	buf[2] = cmd ^ 0xFF;
+	p_err = port->write(port, buf, 3);
 	if (p_err != PORT_ERR_OK) {
 		fprintf(stderr, "Failed to send command\n");
 		return STM32_ERR_UNKNOWN;
@@ -254,7 +258,7 @@ static stm32_err_t stm32_send_command_timeout(const stm32_t *stm,
 
 static stm32_err_t stm32_send_command(const stm32_t *stm, const uint8_t cmd)
 {
-	return stm32_send_command_timeout(stm, cmd, 0);
+	return stm32_send_command_timeout(stm, cmd, stm->port->flags & PORT_RETRY ? 100 : 0);
 }
 
 /* if we have lost sync, send a wrong command and expect a NACK */
@@ -322,6 +326,8 @@ static stm32_err_t stm32_guess_len_cmd(const stm32_t *stm, uint8_t cmd,
 	}
 
 	p_err = port->read(port, data, len + 2);
+	printf("after port->read\n");
+	stm32_get_ack(stm);
 	if (p_err == PORT_ERR_OK && len == data[0])
 		return STM32_ERR_OK;
 	if (p_err != PORT_ERR_OK) {
@@ -343,6 +349,7 @@ static stm32_err_t stm32_guess_len_cmd(const stm32_t *stm, uint8_t cmd,
 	if (stm32_send_command(stm, cmd) != STM32_ERR_OK)
 		return STM32_ERR_UNKNOWN;
 	p_err = port->read(port, data, len + 2);
+	stm32_get_ack(stm);
 	if (p_err != PORT_ERR_OK)
 		return STM32_ERR_UNKNOWN;
 	return STM32_ERR_OK;
@@ -371,15 +378,17 @@ static stm32_err_t stm32_send_init_seq(const stm32_t *stm)
 		fprintf(stderr, "Failed to send init to device\n");
 		return STM32_ERR_UNKNOWN;
 	}
-	p_err = port->read(port, &byte, 1);
-	if (p_err == PORT_ERR_OK && byte == STM32_ACK)
+
+	p_err = stm32_get_ack(stm);
+	if (p_err == STM32_ERR_OK)
 		return STM32_ERR_OK;
-	if (p_err == PORT_ERR_OK && byte == STM32_NACK) {
+	if (p_err == STM32_ERR_NACK) {
 		/* We could get error later, but let's continue, for now. */
 		fprintf(stderr,
 			"Warning: the interface was not closed properly.\n");
 		return STM32_ERR_OK;
 	}
+
 	if (p_err != PORT_ERR_TIMEDOUT) {
 		fprintf(stderr, "Failed to init device.\n");
 		return STM32_ERR_UNKNOWN;
@@ -395,6 +404,7 @@ static stm32_err_t stm32_send_init_seq(const stm32_t *stm)
 		return STM32_ERR_UNKNOWN;
 	}
 	p_err = port->read(port, &byte, 1);
+	stm32_get_ack(stm);
 	if (p_err == PORT_ERR_OK && byte == STM32_NACK)
 		return STM32_ERR_OK;
 	fprintf(stderr, "Failed to init device.\n");
@@ -428,9 +438,10 @@ stm32_t *stm32_init(struct port_interface *port, const char init)
 	}
 
 	/* From AN, only UART bootloader returns 3 bytes */
-	len = (port->flags & PORT_GVR_ETX) ? 3 : 1;
-	if (port->read(port, buf, len) != PORT_ERR_OK)
+	len = (port->flags & PORT_GVR_ETX) ? 3 : 2;
+	if (port->read(port, buf, len) != PORT_ERR_OK) {
 		return NULL;
+	}
 	stm->version = buf[0];
 	stm->option1 = (port->flags & PORT_GVR_ETX) ? buf[1] : 0;
 	stm->option2 = (port->flags & PORT_GVR_ETX) ? buf[2] : 0;
@@ -438,6 +449,8 @@ stm32_t *stm32_init(struct port_interface *port, const char init)
 		stm32_close(stm);
 		return NULL;
 	}
+
+	printf("version: %x\n", stm->version);
 
 	/* get the bootloader information */
 	len = STM32_CMD_GET_LENGTH;
