@@ -12,6 +12,7 @@ endif
 INSTALL = install
 
 OBJS =	dev_table.o	\
+	spi.o		\
 	i2c.o		\
 	init.o		\
 	main.o		\
