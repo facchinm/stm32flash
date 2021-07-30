@@ -68,7 +68,7 @@ static port_err_t spi_open(struct port_interface *port,
 	uint8_t mode = 0;
 	uint8_t lsb = 0;
 	uint8_t bits;
-  uint32_t speed = 30000;
+  uint32_t speed = 6000000;
 
 	/* 1. check device name match */
 	if (strncmp(ops->device, "/dev/spidev", strlen("/dev/spidev")))

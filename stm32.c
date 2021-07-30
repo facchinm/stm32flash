@@ -55,13 +55,13 @@
 #define STM32_CMD_CRC	0xA1	/* compute CRC */
 #define STM32_CMD_ERR	0xFF	/* not a valid command */
 
-#define STM32_RESYNC_TIMEOUT	35	/* seconds */
-#define STM32_MASSERASE_TIMEOUT	35	/* seconds */
-#define STM32_PAGEERASE_TIMEOUT	5	/* seconds */
-#define STM32_BLKWRITE_TIMEOUT	1	/* seconds */
-#define STM32_WUNPROT_TIMEOUT	1	/* seconds */
-#define STM32_WPROT_TIMEOUT	1	/* seconds */
-#define STM32_RPROT_TIMEOUT	1	/* seconds */
+#define STM32_RESYNC_TIMEOUT	35000	/* seconds */
+#define STM32_MASSERASE_TIMEOUT	35000	/* seconds */
+#define STM32_PAGEERASE_TIMEOUT	5000	/* seconds */
+#define STM32_BLKWRITE_TIMEOUT	1000	/* seconds */
+#define STM32_WUNPROT_TIMEOUT	1000	/* seconds */
+#define STM32_WPROT_TIMEOUT	1000	/* seconds */
+#define STM32_RPROT_TIMEOUT	1000	/* seconds */
 
 #define STM32_CMD_GET_LENGTH	17	/* bytes in the reply */
 
@@ -190,8 +190,6 @@ static stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, time_t timeout)
 	port_err_t p_err;
 	time_t t0, t1;
 
-	printf("stm32_get_ack_timeout\n");
-
 	if (!(port->flags & PORT_RETRY))
 		timeout = 0;
 
@@ -202,7 +200,7 @@ static stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, time_t timeout)
 		p_err = port->read(port, &byte, 1);
 		if ((p_err == PORT_ERR_TIMEDOUT || (byte == 0xA5 && (port->flags & PORT_PROTOCOL_SPI))) && timeout) {
 			time(&t1);
-			usleep(10000);
+			//usleep(1000);
 			if (t1 < t0 + timeout)
 				continue;
 		}
@@ -591,6 +589,9 @@ void stm32_close(stm32_t *stm)
 	free(stm);
 }
 
+#include <stdbool.h>
+
+bool first = true;
 stm32_err_t stm32_read_memory(const stm32_t *stm, uint32_t address,
 			      uint8_t data[], unsigned int len)
 {
@@ -618,16 +619,36 @@ stm32_err_t stm32_read_memory(const stm32_t *stm, uint32_t address,
 	buf[2] = (address >> 8) & 0xFF;
 	buf[3] = address & 0xFF;
 	buf[4] = buf[0] ^ buf[1] ^ buf[2] ^ buf[3];
+
 	if (port->write(port, buf, 5) != PORT_ERR_OK)
 		return STM32_ERR_UNKNOWN;
 	if (stm32_get_ack(stm) != STM32_ERR_OK)
 		return STM32_ERR_UNKNOWN;
 
-	if (stm32_send_command(stm, len - 1) != STM32_ERR_OK)
+	buf[0] = len - 1;
+	buf[1] = buf[0] ^ 0xFF;
+
+	if (port->write(port, buf, 2) != PORT_ERR_OK)
 		return STM32_ERR_UNKNOWN;
 
-	if (port->read(port, data, len) != PORT_ERR_OK)
+	if (stm32_get_ack(stm) != STM32_ERR_OK)
 		return STM32_ERR_UNKNOWN;
+
+	if (first) {
+		if (port->read(port, data, 2) != PORT_ERR_OK)
+			return STM32_ERR_UNKNOWN;
+
+		if (stm32_get_ack(stm) != STM32_ERR_OK)
+			return STM32_ERR_UNKNOWN;
+		first = false;
+	}
+
+	if (port->read(port, data, len + 1) != PORT_ERR_OK)
+		return STM32_ERR_UNKNOWN;
+
+	if (port->flags & PORT_PROTOCOL_SPI) {
+		memmove(data, &data[1], len);
+	}
 
 	return STM32_ERR_OK;
 }
@@ -659,17 +680,23 @@ stm32_err_t stm32_write_memory(const stm32_t *stm, uint32_t address,
 		return STM32_ERR_NO_CMD;
 	}
 
+	printf("stm32_write_memory %x\n", stm->cmd->wm);
+
 	/* send the address and checksum */
 	if (stm32_send_command(stm, stm->cmd->wm) != STM32_ERR_OK)
 		return STM32_ERR_UNKNOWN;
 
-	buf[0] = address >> 24;
+	buf[0] = (address >> 24) & 0xFF;
 	buf[1] = (address >> 16) & 0xFF;
 	buf[2] = (address >> 8) & 0xFF;
 	buf[3] = address & 0xFF;
 	buf[4] = buf[0] ^ buf[1] ^ buf[2] ^ buf[3];
+
+	printf("0x%02x 0x%02x 0x%02x 0x%02x 0x%02x\n", buf[0], buf[1], buf[2], buf[3], buf[4]);
+
 	if (port->write(port, buf, 5) != PORT_ERR_OK)
 		return STM32_ERR_UNKNOWN;
+
 	if (stm32_get_ack(stm) != STM32_ERR_OK)
 		return STM32_ERR_UNKNOWN;
 
@@ -712,6 +739,7 @@ stm32_err_t stm32_wunprot_memory(const stm32_t *stm)
 	if (stm32_send_command(stm, stm->cmd->uw) != STM32_ERR_OK)
 		return STM32_ERR_UNKNOWN;
 
+/*
 	s_err = stm32_get_ack_timeout(stm, STM32_WUNPROT_TIMEOUT);
 	if (s_err == STM32_ERR_NACK) {
 		fprintf(stderr, "Error: Failed to WRITE UNPROTECT\n");
@@ -723,6 +751,7 @@ stm32_err_t stm32_wunprot_memory(const stm32_t *stm)
 			stm32_warn_stretching("WRITE UNPROTECT");
 		return STM32_ERR_UNKNOWN;
 	}
+*/
 	return STM32_ERR_OK;
 }
 
@@ -739,6 +768,7 @@ stm32_err_t stm32_wprot_memory(const stm32_t *stm)
 	if (stm32_send_command(stm, stm->cmd->wp) != STM32_ERR_OK)
 		return STM32_ERR_UNKNOWN;
 
+/*
 	s_err = stm32_get_ack_timeout(stm, STM32_WPROT_TIMEOUT);
 	if (s_err == STM32_ERR_NACK) {
 		fprintf(stderr, "Error: Failed to WRITE PROTECT\n");
@@ -750,6 +780,7 @@ stm32_err_t stm32_wprot_memory(const stm32_t *stm)
 			stm32_warn_stretching("WRITE PROTECT");
 		return STM32_ERR_UNKNOWN;
 	}
+	*/
 	return STM32_ERR_OK;
 }
 
@@ -1106,11 +1137,12 @@ stm32_err_t stm32_crc_memory(const stm32_t *stm, uint32_t address,
 	if (stm32_get_ack(stm) != STM32_ERR_OK)
 		return STM32_ERR_UNKNOWN;
 
-	if (stm32_get_ack(stm) != STM32_ERR_OK)
-		return STM32_ERR_UNKNOWN;
-
 	if (port->read(port, buf, 5) != PORT_ERR_OK)
 		return STM32_ERR_UNKNOWN;
+
+	if (port->flags & PORT_PROTOCOL_SPI) {
+		memmove(buf, &buf[1], 5);
+	}
 
 	if (buf[4] != (buf[0] ^ buf[1] ^ buf[2] ^ buf[3]))
 		return STM32_ERR_UNKNOWN;
