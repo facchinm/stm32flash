@@ -170,9 +170,9 @@ ssize_t spi_transfer(int fd, void *out, void *in, size_t len)
   	uint8_t buf[] = { 0x5A, 0x00, 0x79 };
   	uint8_t temp_buf[len + 1];
 
-  	msgs[0].tx_buf = in ? &buf[1] : out;
+  	msgs[0].tx_buf = out;
   	msgs[0].rx_buf = temp_buf;
-  	msgs[0].len = len + 1;
+  	msgs[0].len = len;
   	msgs[0].cs_change = 0;
 
   	msgs[1].tx_buf = out;
@@ -180,26 +180,30 @@ ssize_t spi_transfer(int fd, void *out, void *in, size_t len)
   	msgs[1].len = len;
   	msgs[1].cs_change = 0;
 
-  	if(ioctl(fd, SPI_IOC_MESSAGE(1), &msgs) < 0)
-        return PORT_ERR_UNKNOWN;
+  	if(ioctl(fd, SPI_IOC_MESSAGE(1), &msgs) < 0) {
+  		printf("ioctl failed: %d\n", len);
+      return PORT_ERR_UNKNOWN;
+    }
 
     if (in) {
 
     	memmove(in, temp_buf, len);
-    	printf("%x %x\n", ((uint8_t*)in)[0], ((uint8_t*)in)[1]);
 
+/*
     	if (((uint8_t*)in)[0] == 0xA5) {
     		return PORT_ERR_TIMEDOUT;
     	} else {
     		if ((((uint8_t*)in)[0] == 0x79)) {
     			msgs[0].tx_buf = &buf[2];
     			msgs[0].rx_buf = temp_buf;
+    			msgs[0].len = 1;
     			if(ioctl(fd, SPI_IOC_MESSAGE(1), &msgs) < 0)
         		return PORT_ERR_UNKNOWN;
     		} else {
     			printf("got %x\n", ((uint8_t*)in)[0]);
     		}
     	}
+    */
     }
 /*
     if (in) {
@@ -266,9 +270,16 @@ static port_err_t spi_flush(struct port_interface __unused *port)
 	return PORT_ERR_OK;
 }
 
+static struct varlen_cmd spi_cmd_get_reply[] = {
+	{0x10, 11},
+	{0x11, 13},
+	{0x12, 18},
+	{ /* sentinel */ }
+};
+
 struct port_interface port_spi = {
 	.name	= "spi",
-	.flags	= PORT_CMD_INIT | PORT_RETRY /*| PORT_GVR_ETX */,
+	.flags	= PORT_CMD_INIT | PORT_RETRY | PORT_GVR_ETX | PORT_PROTOCOL_SPI,
 	.open	= spi_open,
 	.close	= spi_close,
 	.flush  = spi_flush,
@@ -276,6 +287,7 @@ struct port_interface port_spi = {
 	.write	= spi_write,
 	.gpio	= spi_gpio,
 	.get_cfg_str	= spi_get_cfg_str,
+	.cmd_get_reply	= spi_cmd_get_reply,
 };
 
 #endif

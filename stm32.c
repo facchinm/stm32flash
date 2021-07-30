@@ -200,7 +200,7 @@ static stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, time_t timeout)
 
 	do {
 		p_err = port->read(port, &byte, 1);
-		if (p_err == PORT_ERR_TIMEDOUT && timeout) {
+		if ((p_err == PORT_ERR_TIMEDOUT || (byte == 0xA5 && (port->flags & PORT_PROTOCOL_SPI))) && timeout) {
 			time(&t1);
 			usleep(10000);
 			if (t1 < t0 + timeout)
@@ -212,8 +212,12 @@ static stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, time_t timeout)
 			return STM32_ERR_UNKNOWN;
 		}
 
-		if (byte == STM32_ACK)
+		if (byte == STM32_ACK) {
+			if (port->flags & PORT_PROTOCOL_SPI) {
+				port->write(port, &byte, 1);
+			}
 			return STM32_ERR_OK;
+		}
 		if (byte == STM32_NACK)
 			return STM32_ERR_NACK;
 		if (byte != STM32_BUSY) {
@@ -326,10 +330,16 @@ static stm32_err_t stm32_guess_len_cmd(const stm32_t *stm, uint8_t cmd,
 	}
 
 	p_err = port->read(port, data, len + 2);
-	printf("after port->read\n");
-	stm32_get_ack(stm);
+
+	if (port->flags & PORT_PROTOCOL_SPI) {
+		memmove(data, &data[1], len);
+	}
+	printf("len: %d data %x %x %x %x %x\n", len, data[0], data[1], data[2], data[3], data[4]);
 	if (p_err == PORT_ERR_OK && len == data[0])
 		return STM32_ERR_OK;
+
+	return STM32_ERR_OK;
+
 	if (p_err != PORT_ERR_OK) {
 		/* restart with only one byte */
 		if (stm32_resync(stm) != STM32_ERR_OK)
@@ -437,10 +447,16 @@ stm32_t *stm32_init(struct port_interface *port, const char init)
 		return NULL;
 	}
 
+	printf("stm32_send_command(stm, STM32_CMD_GVR)\n");
+
 	/* From AN, only UART bootloader returns 3 bytes */
-	len = (port->flags & PORT_GVR_ETX) ? 3 : 2;
+	len = (port->flags & PORT_GVR_ETX) ? 3 : 1;
 	if (port->read(port, buf, len) != PORT_ERR_OK) {
+		printf("read failed\n");
 		return NULL;
+	}
+	if (port->flags & PORT_PROTOCOL_SPI) {
+		memmove(buf, &buf[1], 3);
 	}
 	stm->version = buf[0];
 	stm->option1 = (port->flags & PORT_GVR_ETX) ? buf[1] : 0;
@@ -530,7 +546,8 @@ stm32_t *stm32_init(struct port_interface *port, const char init)
 	}
 
 	/* get the device ID */
-	if (stm32_guess_len_cmd(stm, stm->cmd->gid, buf, 1) != STM32_ERR_OK) {
+	printf("get the device ID\n");
+	if (stm32_guess_len_cmd(stm, stm->cmd->gid, buf, 3) != STM32_ERR_OK) {
 		stm32_close(stm);
 		return NULL;
 	}
@@ -547,10 +564,12 @@ stm32_t *stm32_init(struct port_interface *port, const char init)
 			fprintf(stderr, " %02x", buf[i]);
 		fprintf(stderr, "\n");
 	}
+/*
 	if (stm32_get_ack(stm) != STM32_ERR_OK) {
 		stm32_close(stm);
 		return NULL;
 	}
+*/
 
 	stm->dev = devices;
 	while (stm->dev->id != 0x00 && stm->dev->id != stm->pid)
